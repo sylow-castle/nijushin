@@ -58,19 +58,31 @@
         a.btn:hover {
             border-color: darkviolet;
         }
+
+        div.role textarea {
+            background-color: azure;
+        }
+
+        div.role.comment_target textarea {
+            background-color: unset;
+        }
+
+
     </style>
 </head>
 
 <body>
     <h1>ニジューシン</h1>
+    <div id="menu">
+        <p>
+            <a class="kicker btn" href="?data=initial_data.json">New</a>
+            <a id="system_export" class="kicker btn">Export</a>
+            <a id="system_edit" class="kicker btn" href="dynamic_defined">Edit</a>
+        </p>
+    </div>
     <div class="system_form">
         <p>コピー用テキスト：
             <input type="text" id="cliper">
-        </p>
-    </div>
-    <div id="menu">
-        <p>
-            <a id="system_export" class="kicker btn">Export</a>
         </p>
     </div>
     <div id="comment_form">
@@ -127,13 +139,14 @@
 
         function main(global) {
             var templates = {};
-            var list = document.getElementById("command_list");
+            var list = document.querySelector("#command_list");
             var speaker_nodes = {};
             var HandlingData = new OneLiners();
             global.keyDownState = "";
+            var conf = {};
+            conf.file_name ="app.html";
 
-
-            var menu = document.getElementById("menu");
+            var menu = document.querySelector("#menu");
             menu.addEventListener("click", function (element) {
                 if (!element.target.classList.contains("kicker")) {
                     return;
@@ -149,7 +162,7 @@
                 }
             });
 
-            var comment = document.getElementById("comment_form");
+            var comment = document.querySelector("#comment_form");
             comment.addEventListener("click", function (element) {
                 if (!element.target.classList.contains("kicker")) {
                     return;
@@ -158,12 +171,13 @@
                 var type = element.target.getAttribute("id");
                 var rowNode = element.target.parentNode.parentNode;
                 let value = rowNode.querySelector("textarea").value;
-                let speaker = decide_speaker(rowNode);
+                let speaker = decideSpeaker(rowNode);
                 HandlingData.add(speaker, value);
             });
             LoadMainData(HandlingData);
             SetUpElements();
             SetUpKeyDown();
+            return;
             //宣言色々
             function OneLiners(data) {
                 this.list = {
@@ -176,7 +190,7 @@
                         "header": ["speaker", "message"],
                         "body": []
                     },
-                    "todo": ""
+                    "todo": []
                 };
 
                 this.speakers = {};
@@ -187,6 +201,7 @@
                 this.exportAsJSON = exportAsJSON;
                 this.addSpeaker = addSpeaker;
                 this.getIconURL = getIconURL;
+                this.getToDo = readToDo;
 
                 function add(speaker_id, message, time) {
                     if (!(time instanceof Date)) {
@@ -214,18 +229,19 @@
                 }
 
                 function exportAsJSON() {
+                    var exportObj = this.list;
+                    exportObj.todo = this.getToDo();
                     clip(JSON.stringify(this.list));
                 }
 
                 function setToDo(todo_list) {
                     this.ToDo =todo_list;
                 }
-
             }
 
             function LoadMainData(receiver) {
                 var maindata = receiver;
-                fetch('data.json')
+                fetch(decideMainData())
                     .then(function (response) {
                         return response.json();
                     })
@@ -243,18 +259,23 @@
                             maindata.add(speaker, message, time);
                         });
                         
-                        maindata.setToDo(resposeObj.todo);
+                        writeToDo(responseObj.todo);
                     })
                     .catch(function () {
                         addRecord(speakers["O"], "結果データの読み込みに失敗しました", new Date());
                     });
             };
 
+            function decideMainData() {
+                const url = (new URL(document.location)).searchParams;
+                return (data = url.get("data")) ? data : "data.json";
+            }
+
             function SetUpElements() {
                 document.querySelectorAll('[href="dynamic_defined"]').forEach(function (element) {
                     if ('system_edit' === element.getAttribute("id")) {
                         const file_path = location.pathname;
-                        const json_file = file_path.replace("index.html", "data.json");
+                        const json_file = file_path.replace(conf.file_name, decideMainData());
                         element.setAttribute("href", 'vscode://file' + json_file);
                     }
                 });
@@ -262,7 +283,7 @@
 
             function addRecord(icon_url, message, time) {
                 if (!('record' in templates)) {
-                    templates.record = global.document.getElementById("tmpl_message");
+                    templates.record = global.document.querySelector("#tmpl_message");
                 }
 
                 var newRecord = templates.record.cloneNode(true);
@@ -283,29 +304,35 @@
                 newRecord.querySelector('span.time').innerText = formatDate(time);
 
                 const list = global.document.querySelector('#command_list tbody');
-                //list.appendChild(newRecord);
                 list.insertBefore(newRecord, templates.record.nextSibling);
             }
 
             function addSpeakerNode(speaker_id) {
                 if (!('speaker' in templates)) {
-                    templates.speaker = global.document.getElementById("tmpl_speaker");
+                    templates.speaker = global.document.querySelector("#tmpl_speaker");
                 }
-                var newRecord = templates.speaker.cloneNode(true);
-                newRecord.removeAttribute("id");
+                var newSpeaker = templates.speaker.cloneNode(true);
+                newSpeaker.removeAttribute("id");
 
                 const icon_url = HandlingData.getIconURL(speaker_id);
-                newRecord.querySelector('img').setAttribute('src', icon_url);
-                newRecord.querySelector('textarea').addEventListener('focus',function() {
+                newSpeaker.querySelector('img').setAttribute('src', icon_url);
+                newSpeaker.querySelector('textarea').addEventListener('focus',function() {
+                    document.querySelectorAll('div.role').forEach(function(element, index) {
+                        if(newSpeaker === element) {
+                            element.classList.add("comment_target");
+                        } else {
+                            element.classList.remove("comment_target");
+                        }
+                    });
                     global.keyDownState = speaker_id;
                     console.log(speaker_id);
                 });
 
-                speaker_nodes[speaker_id] = newRecord;
+                speaker_nodes[speaker_id] = newSpeaker;
 
                 const list = global.document.querySelector('#comment_form');
-                list.appendChild(newRecord);
-                newRecord.classList.remove("template");
+                list.appendChild(newSpeaker);
+                newSpeaker.classList.remove("template");
             }
 
             function formatDate(datetime) {
@@ -318,13 +345,13 @@
             }
 
             function clip(target) {
-                var input = document.getElementById("cliper");
+                var input = document.querySelector("#cliper");
                 input.value = target;
                 input.select();
                 document.execCommand("copy");
             }
 
-            function decide_speaker(speakerNode) {
+            function decideSpeaker(speakerNode) {
                 const keys = Object.keys(speaker_nodes);
                 for(let index = 0; index < keys.length; index++) {
                     if(speakerNode === speaker_nodes[keys[index]]) {
@@ -335,21 +362,27 @@
                 return "";
             }
 
-            global.pressedKey = { 'ctrl': false, 'enter': false };
+            function readToDo() {
+                return ToDoSection.parentNode.querySelector("textarea").value || "";
+            }
+
+            function writeToDo(value) {
+                ToDoSection.parentNode.querySelector("textarea").value = value || "";
+            }
+
             function SetUpKeyDown() {
-                var tmpl = document.getElementById("tmpl_speaker");
+                global.pressedKey = { 'ctrl': false, 'enter': false };
+                var tmpl = document.querySelector("#tmpl_speaker");
 
                 window.onkeydown = getKeyDown;
                 window.onkeyup = getKeyUp;
 
                 function getKeyDown(event) {
+                    console.log("called getKeyDown");
                     if (event.key === 'Enter') {
                         pressedKey.enter = true;
                     }
-
-                    if (event.ctrlKey) {
-                        pressedKey.ctrl = true;
-                    }
+                    pressedKey.ctrl = event.ctrlKey;
 
                     decideShotrCut();
                 }
@@ -358,10 +391,7 @@
                     if (event.key === 'Enter') {
                         pressedKey.enter = false;
                     }
-
-                    if (event.ctrlKey) {
-                        pressedKey.ctrl = false;
-                    }
+                    pressedKey.ctrl = event.ctrlKey;
                 }
 
                 function decideShotrCut() {
@@ -372,7 +402,7 @@
 
                     if (pressedKey.enter && pressedKey.ctrl) {
                         let value = rowNode.querySelector("textarea").value;
-                        let speaker = decide_speaker(rowNode);
+                        let speaker = decideSpeaker(rowNode);
                         HandlingData.add(speaker, value);
                     }
                 }
