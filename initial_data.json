@@ -1,0 +1,26 @@
+{
+    "speaker": {
+        "header": [
+            "speaker_id",
+            "icon_url"
+        ],
+        "body": [
+            [
+                "O",
+                "img/old_wise_man.png"
+            ],
+            [
+                "W",
+                "img/ego.png"
+            ]
+        ]
+    },
+    "message": {
+        "header": [
+            "speaker",
+            "message"
+        ],
+        "body": [
+        ]
+    }
+}

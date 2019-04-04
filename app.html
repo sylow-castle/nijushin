@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="robots" content="noindex,nofollow">
+    <title>ニジューシン</title>
+    <style type="text/css">
+        #main_contents {
+            overflow-x: scroll;
+            white-space: nowrap;
+        }
+
+        #main_contents .contents {
+            display: inline-block;
+            vertical-align: top;
+        }
+
+        #command_list {
+            display: block;
+            height: 25em;
+            width: 50em;
+            overflow-x: scroll;
+            table-layout: fixed;
+            white-space: normal;
+        }
+
+        td.message {
+            width: 30em;
+        }
+
+        .template {
+            display: none;
+        }
+
+        #comment_form {
+            display: block;
+
+        }
+
+        div.role_cell {
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        img.avatar_icon {
+            width: 50px;
+            height: 50px;
+        }
+
+        a.btn {
+            border-style: inset;
+            border-color: deepskyblue;
+
+            padding : 0.25em;
+        }
+
+        a.btn:hover {
+            border-color: darkviolet;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>ニジューシン</h1>
+    <div class="system_form">
+        <p>コピー用テキスト：
+            <input type="text" id="cliper">
+        </p>
+    </div>
+    <div id="menu">
+        <p>
+            <a id="system_export" class="kicker btn">Export</a>
+        </p>
+    </div>
+    <div id="comment_form">
+        <div id="tmpl_speaker" class="role template">
+            <div class="icon role_cell">
+                <img class="avatar_icon" src="img/stop.png">
+            </div>
+            <div class="role_cell">
+                <textarea row="3" cols="60"></textarea>
+            </div>
+            <div class="role_cell">
+                <a id="speak_observer" class="btn kicker explain">Explain</a>
+            </div>
+        </div>
+    </div>
+    <div id="main_contents">
+        <div class="contents">
+            <h2>おしゃべり</h2>
+            <table id="command_list">
+                <thead>
+                    <tr>
+                        <th class="copy" scope="col">役割</th>
+                        <th class="message" scope="col">コメント</th>
+                        <th class="title" scope="col">時刻</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr id="tmpl_message" class="template">
+                        <td width="50px" height="50px">
+                            <span class="icon"></span>
+                        </td>
+                        <td class="message">
+                            <span class="message">こめんと</span>
+                        </td>
+                        <td class="time">
+                            <span class="time">じかん</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="contents detail_area">
+            <h2 id="ToDoSection">ToDo</h2>
+            <p>
+                <textarea rows="20" cols="40"></textarea>
+            </p>
+        </div>
+    </div>
+    <script type="text/javascript">
+        window.onload = function () {
+            main(window);
+        };
+
+
+        function main(global) {
+            var templates = {};
+            var list = document.getElementById("command_list");
+            var speaker_nodes = {};
+            var HandlingData = new OneLiners();
+            global.keyDownState = "";
+
+
+            var menu = document.getElementById("menu");
+            menu.addEventListener("click", function (element) {
+                if (!element.target.classList.contains("kicker")) {
+                    return;
+                }
+
+                var type = element.target.getAttribute("id");
+                switch (type) {
+                    case "system_export":
+                        HandlingData.exportAsJSON();
+                        break;
+                    default:
+                        break;
+                }
+            });
+
+            var comment = document.getElementById("comment_form");
+            comment.addEventListener("click", function (element) {
+                if (!element.target.classList.contains("kicker")) {
+                    return;
+                }
+
+                var type = element.target.getAttribute("id");
+                var rowNode = element.target.parentNode.parentNode;
+                let value = rowNode.querySelector("textarea").value;
+                let speaker = decide_speaker(rowNode);
+                HandlingData.add(speaker, value);
+            });
+            LoadMainData(HandlingData);
+            SetUpElements();
+            SetUpKeyDown();
+            //宣言色々
+            function OneLiners(data) {
+                this.list = {
+                    "speaker": {
+                        "header": ["speaker_id", "icon_url"],
+                        "body": []
+                    },
+
+                    "message": {
+                        "header": ["speaker", "message"],
+                        "body": []
+                    },
+                    "todo": ""
+                };
+
+                this.speakers = {};
+                this.ToDo = "";
+
+
+                this.add = add;
+                this.exportAsJSON = exportAsJSON;
+                this.addSpeaker = addSpeaker;
+                this.getIconURL = getIconURL;
+
+                function add(speaker_id, message, time) {
+                    if (!(time instanceof Date)) {
+                        time = new Date();
+                    }
+
+                    var line = [
+                        speaker_id,
+                        message,
+                        time
+                    ];
+
+                    this.list.message.body.push(line);
+                    addRecord(this.getIconURL(speaker_id), message, time);
+                }
+
+                function addSpeaker(speaker_id, icon_url) {
+                    this.speakers[speaker_id] = icon_url;
+                    this.list.speaker.body.push([speaker_id, icon_url]);
+                    addSpeakerNode(speaker_id);
+                }
+
+                function getIconURL(speaker_id) {
+                    return this.speakers[speaker_id]
+                }
+
+                function exportAsJSON() {
+                    clip(JSON.stringify(this.list));
+                }
+
+                function setToDo(todo_list) {
+                    this.ToDo =todo_list;
+                }
+
+            }
+
+            function LoadMainData(receiver) {
+                var maindata = receiver;
+                fetch('data.json')
+                    .then(function (response) {
+                        return response.json();
+                    })
+                    .then(function (responseObj) {
+                        var speakers = {};
+                        responseObj.speaker.body.forEach(function (element) {
+                            maindata.addSpeaker(element[0], element[1]);
+                        });
+
+                        responseObj.message.body.forEach(function (element) {
+                            let speaker, message, time;
+                            speaker = element[0];
+                            message = element[1];
+                            time = new Date(element[2]);
+                            maindata.add(speaker, message, time);
+                        });
+                        
+                        maindata.setToDo(resposeObj.todo);
+                    })
+                    .catch(function () {
+                        addRecord(speakers["O"], "結果データの読み込みに失敗しました", new Date());
+                    });
+            };
+
+            function SetUpElements() {
+                document.querySelectorAll('[href="dynamic_defined"]').forEach(function (element) {
+                    if ('system_edit' === element.getAttribute("id")) {
+                        const file_path = location.pathname;
+                        const json_file = file_path.replace("index.html", "data.json");
+                        element.setAttribute("href", 'vscode://file' + json_file);
+                    }
+                });
+            }
+
+            function addRecord(icon_url, message, time) {
+                if (!('record' in templates)) {
+                    templates.record = global.document.getElementById("tmpl_message");
+                }
+
+                var newRecord = templates.record.cloneNode(true);
+                newRecord.removeAttribute("id");
+                newRecord.classList.remove("template");
+                if (typeof icon_url !== 'string') {
+                    icon_url = '';
+                }
+                if (typeof message !== 'string') {
+                    message = '';
+                }
+                if (!(time instanceof Date)) {
+                    time = new Date();
+                }
+
+                newRecord.querySelector('span.icon').innerHTML = `<img src="${icon_url}" class="avatar_icon">`;
+                newRecord.querySelector('span.message').innerText = message;
+                newRecord.querySelector('span.time').innerText = formatDate(time);
+
+                const list = global.document.querySelector('#command_list tbody');
+                //list.appendChild(newRecord);
+                list.insertBefore(newRecord, templates.record.nextSibling);
+            }
+
+            function addSpeakerNode(speaker_id) {
+                if (!('speaker' in templates)) {
+                    templates.speaker = global.document.getElementById("tmpl_speaker");
+                }
+                var newRecord = templates.speaker.cloneNode(true);
+                newRecord.removeAttribute("id");
+
+                const icon_url = HandlingData.getIconURL(speaker_id);
+                newRecord.querySelector('img').setAttribute('src', icon_url);
+                newRecord.querySelector('textarea').addEventListener('focus',function() {
+                    global.keyDownState = speaker_id;
+                    console.log(speaker_id);
+                });
+
+                speaker_nodes[speaker_id] = newRecord;
+
+                const list = global.document.querySelector('#comment_form');
+                list.appendChild(newRecord);
+                newRecord.classList.remove("template");
+            }
+
+            function formatDate(datetime) {
+                if (datetime instanceof Date) {
+                    return `${datetime.getHours()}:${datetime.getMinutes()}:${datetime.getSeconds()}  ${datetime.getFullYear()}-${1 + datetime.getMonth()}-${datetime.getDate()}`
+                }
+
+                return '';
+
+            }
+
+            function clip(target) {
+                var input = document.getElementById("cliper");
+                input.value = target;
+                input.select();
+                document.execCommand("copy");
+            }
+
+            function decide_speaker(speakerNode) {
+                const keys = Object.keys(speaker_nodes);
+                for(let index = 0; index < keys.length; index++) {
+                    if(speakerNode === speaker_nodes[keys[index]]) {
+                        return keys[index];
+                    }
+                }
+
+                return "";
+            }
+
+            global.pressedKey = { 'ctrl': false, 'enter': false };
+            function SetUpKeyDown() {
+                var tmpl = document.getElementById("tmpl_speaker");
+
+                window.onkeydown = getKeyDown;
+                window.onkeyup = getKeyUp;
+
+                function getKeyDown(event) {
+                    if (event.key === 'Enter') {
+                        pressedKey.enter = true;
+                    }
+
+                    if (event.ctrlKey) {
+                        pressedKey.ctrl = true;
+                    }
+
+                    decideShotrCut();
+                }
+
+                function getKeyUp(event) {
+                    if (event.key === 'Enter') {
+                        pressedKey.enter = false;
+                    }
+
+                    if (event.ctrlKey) {
+                        pressedKey.ctrl = false;
+                    }
+                }
+
+                function decideShotrCut() {
+                    var rowNode = speaker_nodes[global.keyDownState];
+                    if(!(rowNode instanceof Node)) {
+                        return;
+                    }
+
+                    if (pressedKey.enter && pressedKey.ctrl) {
+                        let value = rowNode.querySelector("textarea").value;
+                        let speaker = decide_speaker(rowNode);
+                        HandlingData.add(speaker, value);
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
